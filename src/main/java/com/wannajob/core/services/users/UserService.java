@@ -14,8 +14,8 @@ public class UserService {
 		return null;
 	}
 
-	public void isPasswordValid(CharSequence password, CharSequence password2) {
-		// TODO Auto-generated method stub
+	public Boolean isPasswordValid(CharSequence password, CharSequence password2) {
+		return true;
 		
 	}
 
