@@ -6,6 +6,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.mysql.cj.protocol.Message;
+import com.mysql.cj.protocol.x.MessageConstants;
 import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
@@ -88,6 +90,9 @@ public class CompanyServiceImpl implements CompanyService {
 	@Autowired
 	JobDAO jobDAO;
 
+	@Autowired
+	UserRoleService userRoleService;
+
 	private static final Logger LOGGER = Logger.getLogger(CompanyServiceImpl.class);
 
 	private static final String ALPHA_NUMERIC_STRING = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@$abcdefghijklmnopqrstuvwxyz";
@@ -114,47 +119,47 @@ public class CompanyServiceImpl implements CompanyService {
 			userService.isPhoneNoValid(companyRequest.getPhoneNo());
 			User existingUser = userService.getUserByPhoneNo(companyRequest.getPhoneNo());
 			if (existingUser != null) {
-				throw new WannaJobException("This phone number is already registered. Try a new phone number.");
+				throw new WannaJobException(MessageConstant.PHONE_NO_ALREADY_EXITS);
 			}
 
 			userService.isPasswordValid(companyRequest.getPassword(), companyRequest.getPassword());
 			if (userService.verifyEmail(companyRequest.getEmail())) {
-				throw new WannaJobException("Email address is already registered. Please pick different email address");
+				throw new WannaJobException(MessageConstant.EMAIL_VAL_MSG);
 			}
 
 			user = populateUserProfile(companyRequest);
 			CompanyProfile companyProfile = populateCompanyProfile(companyRequest);
 
-			userRegisterDAO.persist(user);
-			companyProfileDAO.persist(companyProfile);
+			userService.persist(user);
+			companyProfileService.persist(companyProfile);
 
 			companyUser = new CompanyUser();
 			companyUser.setUserId(user.getId());
 			companyUser.setCompanyId(companyProfile.getId());
 			companyUser.setRoleId(UserCommonUtility.getEmployerTypeId());
-			companyUserDAO.persist(companyUser);
+			companyUserService.persist(companyUser);
 
 			UsersRoles usersRoles = new UsersRoles();
 			usersRoles.setUserId(user.getId());
 			usersRoles.setRoleId(2);
-			usersRolesDAO.persist(usersRoles);
+
+			userRoleService.persist(usersRoles);
 		} else {
 			User exsitingUser = userDAO.find(companyRequest.getUserId());
 			CompanyProfile existingCompanyProfile = companyProfileDAO.find(companyRequest.getCompanyId());
 			if (exsitingUser == null || existingCompanyProfile == null) {
-				throw new WannaJobException("Employer creation failed");
+				throw new WannaJobException(MessageConstant.EMPLOYEE_CREATE_FILED);
 			}
 			if (exsitingUser.getPhoneNo() == null || !exsitingUser.getPhoneNo()
 					.equals(UserCommonUtility.getPhoneNoWithCountryCodePrefix(companyRequest.getPhoneNo()))) {
 				User existingUser = userService.getUserByPhoneNo(companyRequest.getPhoneNo());
 				if (existingUser != null) {
-					throw new WannaJobException("This phone number is already registered. Try a new phone number.");
+					throw new WannaJobException(MessageConstant.PHONE_NO_ALREADY_EXITS);
 				}
 			}
 			if (exsitingUser.getEmail() == null || !exsitingUser.getEmail().equals(companyRequest.getEmail())) {
 				if (userService.verifyEmail(companyRequest.getEmail())) {
-					throw new WannaJobException(
-							"Email address is already registered. Please pick different email address");
+					throw new WannaJobException(MessageConstant.EMAIL_VAL_MSG);
 				}
 			}
 
@@ -162,21 +167,23 @@ public class CompanyServiceImpl implements CompanyService {
 
 			
 			updateCompanyProfile(companyRequest, companyRequest.getCompanyId());
-			companyUser = companyUserDAO
+			companyUser = companyUserService
 					.getCompanyEmployerUsers(companyRequest.getCompanyId(), UserCommonUtility.getEmployerTypeId()).get(0);
 			user = populateUserProfile(companyRequest);
 			user.setRoles(exsitingUser.getRoles());
 			user.setId(exsitingUser.getId());
-			userDAO.merge(user);
+			userService.merge(user);
 		}
 
 		User newUser = new User();
 		try {
 			BeanUtils.copyProperties(newUser, user);
 		} catch (IllegalAccessException e) {
-			e.printStackTrace();
+			//e.printStackTrace();
+			LOGGER.error("Error observed during create employee::"+e.getMessage());
 		} catch (InvocationTargetException e) {
-			e.printStackTrace();
+			//e.printStackTrace();
+			LOGGER.error("Error observed during create employee::"+e.getMessage());
 		}
 		if (companyRequest.getUserDeviceToken() == null || companyRequest.getIsAndroid() == null) {
 			LOGGER.error(
@@ -214,16 +221,16 @@ public class CompanyServiceImpl implements CompanyService {
 			userService.isPhoneNoValid(companyRequest.getPhoneNo());
 			User existingUser = userService.getUserByPhoneNo(companyRequest.getPhoneNo());
 			if (existingUser != null) {
-				throw new WannaJobException("This phone number is already registered. Try a new phone number.");
+				throw new WannaJobException(MessageConstant.PHONE_NO_ALREADY_EXITS);
 			}
 		}
 
 		if (userService.verifyEmail(companyRequest.getEmail())) {
-			throw new WannaJobException("Email address is already registered. Please pick different email address");
+			throw new WannaJobException(MessageConstant.EMAIL_VAL_MSG);
 		}
-		CompanyUser adminCompanyUser = companyUserDAO.getCompanyUserByUserId(adminId);
+		CompanyUser adminCompanyUser = companyUserService.getCompanyUserByUserId(adminId);
 
-		CompanyProfile companyProfile = companyProfileDAO.find(adminCompanyUser.getCompanyId());
+		CompanyProfile companyProfile = companyProfileService.find(adminCompanyUser.getCompanyId());
 
 		User user = new User();
 		user.setFirstName(companyRequest.getFirstName());
@@ -348,26 +355,26 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 		MasterDataRequest companyIndustryType = null;
 
 		if (companyProfile.getHiresPerYearId() != null) {
-			companyHiresPerYear = companyProfileDAO.getCompanyHirePerYearById(companyProfile.getHiresPerYearId());
+			companyHiresPerYear = companyProfileService.getCompanyHirePerYearById(companyProfile.getHiresPerYearId());
 			companyRequest.setHiresPerYearName(companyHiresPerYear.getName());
 			companyRequest.setHiresPerYearId(companyProfile.getHiresPerYearId());
 		}
 
 		if (companyProfile.getSourceId() != null) {
-			companySource = companyProfileDAO.getCompanySourceById(companyProfile.getSourceId());
+			companySource = companyProfileService.getCompanySourceById(companyProfile.getSourceId());
 			companyRequest.setSourceName(companySource.getName());
 			companyRequest.setSourceId(companyProfile.getSourceId());
 		}
 
 		if (companyProfile.getSpendsRecruitingId() != null) {
-			companySpendsRecruiting = companyProfileDAO
+			companySpendsRecruiting = companyProfileService
 					.getCompanySependsRecriterById(companyProfile.getSpendsRecruitingId());
 			companyRequest.setSpendsRecruitingName(companySpendsRecruiting.getName());
 			companyRequest.setSpendsRecruitingId(companyProfile.getSpendsRecruitingId());
 		}
 
 		if (companyProfile.getIndustryTypeId() != null) {
-			companyIndustryType = companyProfileDAO.getCompanyIndustryById(companyProfile.getIndustryTypeId());
+			companyIndustryType = companyProfileService.getCompanyIndustryById(companyProfile.getIndustryTypeId());
 			companyRequest.setIndustryTypeName(companyIndustryType.getName());
 			companyRequest.setIndustryTypeId(companyProfile.getIndustryTypeId());
 		}
@@ -402,7 +409,7 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 			companyRequest.setLongitude(city.getLongitude());
 
 		}
-		if (User.INACTIVE_USER.equals(user.getIsActive())) {
+		if (user.getIsActive()) {
 			companyRequest.setIsEmployerActive(INACTIVE_STRING);
 		} else {
 			companyRequest.setIsEmployerActive(ACTIVE_STRING);
@@ -458,7 +465,7 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 			userService.isEmailValid(companyRequest.getEmail());
 			existingUser = userService.getUserByContactInfo(null, companyRequest.getEmail());
 		} else {
-			throw new WannaJobException("Update failed : email is empty");
+			throw new WannaJobException(MessageConstant.EMAIL_EMPTY);
 		}
 
 		if ((existingUser != null && existingUser.getId() == userId)
@@ -480,7 +487,7 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 			user.setId(userId);
 			userService.update(user);
 		} else {
-			throw new WannaJobException("Email address is already registered. Please pick different email address");
+			throw new WannaJobException(MessageConstant.EMAIL_VAL_MSG);
 		}
 
 	}
@@ -521,16 +528,18 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 			int excludeUserId) throws WannaJobException {
 		List<CompanyRequest> authUserList = new ArrayList<>();
 		List<CompanyRequest> authUserReturnList = new ArrayList<>();
-		List<CompanyUser> companyUserList = companyUserDAO.getCompanyEmployerUsers(companyId,
+
+		List<User> userList = userService.getAllCompanyUsers(companyId);
+		/*List<CompanyUser> companyUserList = companyUserDAO.getCompanyEmployerUsers(companyId,
 				UserCommonUtility.getCompanyUserRoleId());
 
 		if (companyUserList == null || companyUserList.isEmpty()) {
 			throw new WannaJobException("No users found");
-		}
+		}*/
 
-		companyUserList.stream().forEach(x -> {
+
+		userList.stream().forEach(user -> {
 			CompanyRequest companyRequest = new CompanyRequest();
-			User user = userService.find(x.getUserId());
 			companyRequest.setUserId(user.getId());
 			companyRequest.setPhoneNo(user.getPhoneNo());
 			companyRequest.setEmail(user.getEmail());
@@ -540,7 +549,7 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 			companyRequest.setState(user.getName());
 			companyRequest.setZipCode(user.getZipCode());
 			companyRequest.setAddLine1(user.getAddLine1());
-			if (User.ACTIVE_USER.equals(user.getIsActive())) {
+			if (user.getIsActive()) {
 				companyRequest.setIsEmployerActive(ACTIVE_STRING);
 			} else {
 				companyRequest.setIsEmployerActive(INACTIVE_STRING);
@@ -583,21 +592,23 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 	private void updateCompanyUserDetails(CompanyRequest companyRequest, User user) throws WannaJobException {
 		if (companyRequest != null && user != null) {
 
-			if (StringUtils.isBlank(companyRequest.getPhoneNo()) || StringUtils.isBlank(companyRequest.getPassword())
+			//we can do below validation in controller method before invoking service for updating company user details.
+
+			/*if (StringUtils.isBlank(companyRequest.getPhoneNo()) || StringUtils.isBlank(companyRequest.getPassword())
 					|| StringUtils.isBlank(companyRequest.getPassword())) {
 				throw new WannaJobException("Please enter the mandatory details to register!");
-			}
+			}*/
 
 			String phoneNo = UserCommonUtility.getPhoneNoWithCountryCodePrefix(companyRequest.getPhoneNo());
 
-			userService.isPhoneNoValid(companyRequest.getPhoneNo());
+			userService.validatePhoneNumber(companyRequest.getPhoneNo());
+			/*userService.isPhoneNoValid(companyRequest.getPhoneNo());
 			if (user.getPhoneNo() == null || !user.getPhoneNo().equals(phoneNo)) {
 				User existingUser = userService.getUserByPhoneNo(companyRequest.getPhoneNo());
 				if (existingUser != null) {
 					throw new WannaJobException("This phone number is already registered. Try a new phone number.");
 				}
-			}
-
+			}*/
 			userService.isPasswordValid(companyRequest.getPassword(), companyRequest.getRePassword());
 
 			user.setPassword(UserCommonUtility.encodePassword(companyRequest.getPassword()));
@@ -611,7 +622,8 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 			}
 			user.setOtp(otpGenerator.generateOtp());
 			user.setStatus(UserCommonUtility.getOtpNotificationStatus());
-			userDAO.merge(user);
+			userService.update(user);
+			//userDAO.merge(user);
 
 			otpSender.sendOtp(user);
 		}
@@ -622,22 +634,19 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 		LOGGER.info("deactivate User- Id " + userId);
 		User user = userDAO.find(userId);
 		if (!jobDAO.getJobsForEmployer(userId).isEmpty()) {
-			throw new WannaJobException("Please Assgin the jobs of " + user.getFirstName() + " " + user.getLastName()
-					+ " to another user in MyJobs to deactivae user");
+			throw new WannaJobException(String.format(MessageConstant.USER_DEACTIVE_VAL_MSG,  user.getFirstName(), user.getLastName()));
+
 		}
 		userDAO.deactivateUser(userId);
 	}
 
 	public CompanyRequest getCompanyAdminDetails(int companyId) throws WannaJobException {
 
-		List<CompanyUser> companyUser = companyUserDAO.getCompanyEmployerUsers(companyId,
-				UserCommonUtility.getEmployerTypeId());
+		User user = (User) userService.getAnyCompanyUsers(companyId);
 
 		CompanyRequest companyRequest = new CompanyRequest();
 
-		if (companyUser != null && !companyUser.isEmpty()) {
-
-			User user = userService.find(companyUser.get(0).getUserId());
+		if (user != null) {
 			companyRequest.setUserId(user.getId());
 			companyRequest.setPhoneNo(user.getPhoneNo());
 			companyRequest.setEmail(user.getEmail());
@@ -647,14 +656,14 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 			companyRequest.setState(user.getState());
 			companyRequest.setZipCode(user.getZipCode());
 			companyRequest.setAddLine1(user.getAddLine1());
-			if (user.getIsActive() == null || User.ACTIVE_USER.equals(user.getIsActive())) {
+			if (user.getIsActive()){
 				companyRequest.setIsEmployerActive(ACTIVE_STRING);
 			} else {
 				companyRequest.setIsEmployerActive(INACTIVE_STRING);
 			}
 
 		} else {
-			throw new WannaJobException("No user found");
+			throw new WannaJobException(MessageConstant.USER_NOT_EXITS); //move the message to constant file
 		}
 
 		return companyRequest;
@@ -665,11 +674,11 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 	public void updateCompanyLogo(int userId, int companyId, byte[] logo, String logoType) throws WannaJobException {
 
 		User existingUser = userService.find(userId);
-		CompanyProfile existingCompanyProfile = companyProfileDAO.find(companyId);
+		CompanyProfile existingCompanyProfile = companyProfileService.find(companyId);
 		if (existingUser != null && existingCompanyProfile != null) {
-			companyProfileDAO.updateCompanyLogo(companyId, logo, logoType);
+			companyProfileService.updateCompanyLogo(companyId, logo, logoType);
 		} else {
-			throw new WannaJobException("User does not exist!");
+			throw new WannaJobException(MessageConstant.USER_NOT_EXITS);
 		}
 	}
 
