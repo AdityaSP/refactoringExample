@@ -142,9 +142,12 @@ public class User {
 		
 	}
 
-	public Object getIsActive() {
+	public Boolean getIsActive() {
 		// TODO Auto-generated method stub
-		return null;
+		if (User.ACTIVE_USER.equals(this.getIsActive())){
+			return true;
+		}
+		return false;
 	}
 
 	public Object getName() {

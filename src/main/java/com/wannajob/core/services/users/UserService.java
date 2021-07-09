@@ -2,6 +2,8 @@ package com.wannajob.core.services.users;
 
 import com.wannajob.core.models.User;
 
+import java.util.List;
+
 public class UserService {
 
 	public void isPhoneNoValid(CharSequence phoneNo) {
@@ -44,4 +46,20 @@ public class UserService {
 		
 	}
 
+	public void validatePhoneNumber(CharSequence phoneNo) {
+	}
+
+	public List<User> getAllCompanyUsers(int companyId) {
+		return null;
+	}
+
+	public void persist(User user) {
+	}
+
+	public void merge(User user) {
+	}
+
+	public User getAnyCompanyUsers(int companyId) {
+		return null;
+	}
 }
