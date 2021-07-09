@@ -581,39 +581,25 @@ private Object getUserNotification(User user, Object passwordGeneratedStatus, St
 	}
 
 	private void updateCompanyUserDetails(CompanyRequest companyRequest, User user) throws WannaJobException {
+		
 		if (companyRequest != null && user != null) {
 
-			if (StringUtils.isBlank(companyRequest.getPhoneNo()) || StringUtils.isBlank(companyRequest.getPassword())
-					|| StringUtils.isBlank(companyRequest.getPassword())) {
-				throw new WannaJobException("Please enter the mandatory details to register!");
-			}
+			//phone number validator and userService.isPasswordValid(companyRequest.getPassword(), companyRequest.getRePassword()) not required in service layer
+			
+				user.setPassword(UserCommonUtility.encodePassword(companyRequest.getPassword()));
+				user.setPhoneNo(phoneNo);
 
-			String phoneNo = UserCommonUtility.getPhoneNoWithCountryCodePrefix(companyRequest.getPhoneNo());
-
-			userService.isPhoneNoValid(companyRequest.getPhoneNo());
-			if (user.getPhoneNo() == null || !user.getPhoneNo().equals(phoneNo)) {
-				User existingUser = userService.getUserByPhoneNo(companyRequest.getPhoneNo());
-				if (existingUser != null) {
-					throw new WannaJobException("This phone number is already registered. Try a new phone number.");
+				if (companyRequest.getFirstName() != null) {
+					user.setFirstName(companyRequest.getFirstName());
 				}
-			}
-
-			userService.isPasswordValid(companyRequest.getPassword(), companyRequest.getRePassword());
-
-			user.setPassword(UserCommonUtility.encodePassword(companyRequest.getPassword()));
-			user.setPhoneNo(phoneNo);
-
-			if (companyRequest.getFirstName() != null) {
-				user.setFirstName(companyRequest.getFirstName());
-			}
-			if (companyRequest.getLastName() != null) {
-				user.setLastName(companyRequest.getLastName());
-			}
-			user.setOtp(otpGenerator.generateOtp());
-			user.setStatus(UserCommonUtility.getOtpNotificationStatus());
-			userDAO.merge(user);
-
-			otpSender.sendOtp(user);
+				if (companyRequest.getLastName() != null) {
+					user.setLastName(companyRequest.getLastName());
+				}
+				user.setOtp(otpGenerator.generateOtp());
+				user.setStatus(UserCommonUtility.getOtpNotificationStatus());
+				
+				userService.merge(user);
+				otpSender.sendOtp(user);
 		}
 
 	}
